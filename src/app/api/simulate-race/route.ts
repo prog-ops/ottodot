@@ -33,7 +33,7 @@ export async function POST(): Promise<NextResponse<RaceSimulationResponse>> {
     const targetClassId = 'class-race-3';
 
     // Verify initial capacity
-    const initialClass = bookingStore.getTrialClassById(targetClassId);
+    const initialClass = await bookingStore.getTrialClassById(targetClassId);
     if (!initialClass || initialClass.available_seats !== 1) {
       throw new Error('Test setup error: Class does not have exactly 1 available seat.');
     }
@@ -102,8 +102,8 @@ export async function POST(): Promise<NextResponse<RaceSimulationResponse>> {
     }
 
     // Step 5: Final Invariant Verification on Roster
-    const finalRoster = bookingStore.getRoster(targetClassId);
-    const finalClass = bookingStore.getTrialClassById(targetClassId);
+    const finalRoster = await bookingStore.getRoster(targetClassId);
+    const finalClass = await bookingStore.getTrialClassById(targetClassId);
 
     const invariantHolds = finalRoster.length === 4 &&
       finalRoster.some(r => r.student_id === 'student-6') && // User B's student

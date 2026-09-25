@@ -7,8 +7,10 @@ export async function GET(request: NextRequest): Promise<NextResponse<RosterApiR
     const { searchParams } = new URL(request.url);
     const classId = searchParams.get('classId') || undefined;
 
-    const roster = bookingStore.getRoster(classId);
-    const classes = bookingStore.getTrialClasses();
+    const [roster, classes] = await Promise.all([
+      bookingStore.getRoster(classId),
+      bookingStore.getTrialClasses(),
+    ]);
 
     return NextResponse.json({
       success: true,

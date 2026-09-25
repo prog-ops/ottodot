@@ -5,11 +5,13 @@ import { ParentWithStudents } from '@/types';
 // Force dynamic SSR so server renders real-time seed/roster states
 export const dynamic = 'force-dynamic';
 
-export default function Page() {
-  const classes = bookingStore.getTrialClasses();
-  const parents = bookingStore.getParents();
-  const students = bookingStore.getStudents();
-  const roster = bookingStore.getRoster();
+export default async function Page() {
+  const [classes, parents, students, roster] = await Promise.all([
+    bookingStore.getTrialClasses(),
+    bookingStore.getParents(),
+    bookingStore.getStudents(),
+    bookingStore.getRoster(),
+  ]);
 
   const parentsWithStudents: ParentWithStudents[] = parents.map((p) => ({
     ...p,

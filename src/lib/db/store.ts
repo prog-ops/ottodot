@@ -16,6 +16,8 @@ import {
   INITIAL_BOOKINGS, 
   INITIAL_PAYMENT_ATTEMPTS 
 } from './seed-data';
+import { isSupabaseConfigured } from '@/lib/supabase/client';
+import { supabaseStore } from './supabase-store';
 
 // ==============================================================================
 // In-Memory Transactional Mutex Engine
@@ -49,7 +51,7 @@ class AsyncClassMutex {
   }
 }
 
-class InMemoryBookingStore {
+export class InMemoryBookingStore {
   private parents: Parent[] = [];
   private students: Student[] = [];
   private trialClasses: TrialClass[] = [];
@@ -74,18 +76,18 @@ class InMemoryBookingStore {
 
   // --- Read Methods ---
 
-  public getParents(): Parent[] {
+  public async getParents(): Promise<Parent[]> {
     return [...this.parents];
   }
 
-  public getStudents(parentId?: string): Student[] {
+  public async getStudents(parentId?: string): Promise<Student[]> {
     if (parentId) {
       return this.students.filter(s => s.parent_id === parentId);
     }
     return [...this.students];
   }
 
-  public getTrialClasses(): TrialClass[] {
+  public async getTrialClasses(): Promise<TrialClass[]> {
     return this.trialClasses.map(cls => {
       const confirmed_count = this.bookings.filter(
         b => b.trial_class_id === cls.id && b.status === 'confirmed'
@@ -98,7 +100,7 @@ class InMemoryBookingStore {
     });
   }
 
-  public getTrialClassById(id: string): TrialClass | undefined {
+  public async getTrialClassById(id: string): Promise<TrialClass | undefined> {
     const cls = this.trialClasses.find(c => c.id === id);
     if (!cls) return undefined;
     const confirmed_count = this.bookings.filter(
@@ -111,25 +113,25 @@ class InMemoryBookingStore {
     };
   }
 
-  public getBookings(classId?: string): Booking[] {
+  public async getBookings(classId?: string): Promise<Booking[]> {
     if (classId) {
       return this.bookings.filter(b => b.trial_class_id === classId);
     }
     return [...this.bookings];
   }
 
-  public getBookingById(id: string): Booking | undefined {
+  public async getBookingById(id: string): Promise<Booking | undefined> {
     return this.bookings.find(b => b.id === id);
   }
 
-  public getPaymentAttempts(bookingId?: string): PaymentAttempt[] {
+  public async getPaymentAttempts(bookingId?: string): Promise<PaymentAttempt[]> {
     if (bookingId) {
       return this.paymentAttempts.filter(p => p.booking_id === bookingId);
     }
     return [...this.paymentAttempts];
   }
 
-  public getRoster(classId?: string): RosterEntry[] {
+  public async getRoster(classId?: string): Promise<RosterEntry[]> {
     const confirmedBookings = this.bookings.filter(
       b => b.status === 'confirmed' && (!classId || b.trial_class_id === classId)
     );
@@ -157,10 +159,6 @@ class InMemoryBookingStore {
 
   // --- Write Methods with ACID Guarantees & Concurrency Control ---
 
-  /**
-   * Step 1: Parent reserves a seat (creates a 'pending_payment' booking).
-   * Validates duplicate confirmed booking and current class availability.
-   */
   public async reserveBooking(input: ReserveBookingInput): Promise<BookingResult> {
     const releaseLock = await this.classMutex.acquire(input.trial_class_id);
 
@@ -227,11 +225,6 @@ class InMemoryBookingStore {
     }
   }
 
-  /**
-   * Step 2: Atomic Payment & Confirmation
-   * Implements the critical section handling the Last-Seat Race Condition.
-   * Acquires exclusive lock per trial_class_id, guaranteeing serialization.
-   */
   public async processPayment(input: ProcessPaymentInput): Promise<BookingResult> {
     const booking = this.bookings.find(b => b.id === input.booking_id);
     if (!booking) {
@@ -288,7 +281,6 @@ class InMemoryBookingStore {
       ).length;
 
       if (confirmedCount >= cls.capacity) {
-        // RACE CONDITION DETECTED: Another user confirmed the last seat while this user was paying!
         booking.status = 'payment_failed';
         const raceFailedAttempt: PaymentAttempt = {
           id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -367,5 +359,67 @@ class InMemoryBookingStore {
   }
 }
 
-// Singleton instance across server execution
-export const bookingStore = new InMemoryBookingStore();
+// ==============================================================================
+// Unified Booking Store Facade
+// Automatically routes to live Supabase server when credentials are configured;
+// otherwise falls back to the in-memory transactional mutex store.
+// ==============================================================================
+
+class UnifiedBookingStore {
+  private inMemoryStore = new InMemoryBookingStore();
+
+  async getParents(): Promise<Parent[]> {
+    if (isSupabaseConfigured) {
+      return supabaseStore.getParents();
+    }
+    return this.inMemoryStore.getParents();
+  }
+
+  async getStudents(parentId?: string): Promise<Student[]> {
+    if (isSupabaseConfigured) {
+      return supabaseStore.getStudents(parentId);
+    }
+    return this.inMemoryStore.getStudents(parentId);
+  }
+
+  async getTrialClasses(): Promise<TrialClass[]> {
+    if (isSupabaseConfigured) {
+      return supabaseStore.getTrialClasses();
+    }
+    return this.inMemoryStore.getTrialClasses();
+  }
+
+  async getTrialClassById(id: string): Promise<TrialClass | undefined> {
+    if (isSupabaseConfigured) {
+      return supabaseStore.getTrialClassById(id);
+    }
+    return this.inMemoryStore.getTrialClassById(id);
+  }
+
+  async getRoster(classId?: string): Promise<RosterEntry[]> {
+    if (isSupabaseConfigured) {
+      return supabaseStore.getRoster(classId);
+    }
+    return this.inMemoryStore.getRoster(classId);
+  }
+
+  async reserveBooking(input: ReserveBookingInput): Promise<BookingResult> {
+    if (isSupabaseConfigured) {
+      return supabaseStore.reserveBooking(input);
+    }
+    return this.inMemoryStore.reserveBooking(input);
+  }
+
+  async processPayment(input: ProcessPaymentInput): Promise<BookingResult> {
+    if (isSupabaseConfigured) {
+      return supabaseStore.processPayment(input);
+    }
+    return this.inMemoryStore.processPayment(input);
+  }
+
+  reset(): void {
+    this.inMemoryStore.reset();
+  }
+}
+
+export const bookingStore = new UnifiedBookingStore();

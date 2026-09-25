@@ -14,7 +14,7 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
     const parentId = 'parent-1';
 
     // Verify student already exists in confirmed roster
-    const rosterBefore = bookingStore.getRoster(targetClassId);
+    const rosterBefore = await bookingStore.getRoster(targetClassId);
     expect(rosterBefore.some((r) => r.student_id === studentId)).toBe(true);
 
     // Attempt 1: Try to reserve again for the same child and class
@@ -31,7 +31,7 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
     }
 
     // Verify roster count did NOT increase
-    const rosterAfter = bookingStore.getRoster(targetClassId);
+    const rosterAfter = await bookingStore.getRoster(targetClassId);
     expect(rosterAfter.length).toBe(rosterBefore.length);
   });
 
@@ -41,7 +41,7 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
     const newStudentId = 'student-5'; // Iris Allen Jr.
     const parentId = 'parent-5';
 
-    const fullClass = bookingStore.getTrialClassById(fullClassId);
+    const fullClass = await bookingStore.getTrialClassById(fullClassId);
     expect(fullClass?.confirmed_count).toBe(4);
     expect(fullClass?.available_seats).toBe(0);
 
@@ -59,7 +59,7 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
     }
 
     // Verify roster remains strictly 4
-    const roster = bookingStore.getRoster(fullClassId);
+    const roster = await bookingStore.getRoster(fullClassId);
     expect(roster.length).toBe(4);
   });
 
@@ -69,7 +69,7 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
     const studentId = 'student-5'; // Iris Allen Jr.
     const parentId = 'parent-5';
 
-    const initialRosterCount = bookingStore.getRoster(targetClassId).length;
+    const initialRosterCount = (await bookingStore.getRoster(targetClassId)).length;
 
     // 1. Reserve seat (pending_payment)
     const reserveResult = await bookingStore.reserveBooking({
@@ -98,7 +98,7 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
     }
 
     // 3. CRITICAL INVARIANT: Student must NOT appear on confirmed roster!
-    const rosterAfterFailure = bookingStore.getRoster(targetClassId);
+    const rosterAfterFailure = await bookingStore.getRoster(targetClassId);
     expect(rosterAfterFailure.length).toBe(initialRosterCount);
     expect(rosterAfterFailure.some((r) => r.student_id === studentId)).toBe(false);
   });
@@ -106,7 +106,7 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
   test('4. Handles Last-Seat Race Condition: User A and User B compete for 1 remaining seat', async () => {
     // Setup: Speed Math (class-race-3) has EXACTLY 3 confirmed students, 1 seat remaining
     const targetClassId = 'class-race-3';
-    const targetClass = bookingStore.getTrialClassById(targetClassId);
+    const targetClass = await bookingStore.getTrialClassById(targetClassId);
     expect(targetClass?.confirmed_count).toBe(3);
     expect(targetClass?.available_seats).toBe(1);
 
@@ -154,7 +154,7 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
     }
 
     // Verify roster: Total confirmed students is strictly 4 (User B confirmed, User A omitted)
-    const finalRoster = bookingStore.getRoster(targetClassId);
+    const finalRoster = await bookingStore.getRoster(targetClassId);
     expect(finalRoster.length).toBe(4);
     expect(finalRoster.some((r) => r.student_id === 'student-6')).toBe(true); // User B present
     expect(finalRoster.some((r) => r.student_id === 'student-5')).toBe(false); // User A absent
@@ -207,7 +207,7 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
     expect(failures.every((f) => !f.success && f.error_code === 'CLASS_FULL')).toBe(true);
 
     // Hard Invariant: Final confirmed count must be EXACTLY 4
-    const finalRoster = bookingStore.getRoster(targetClassId);
+    const finalRoster = await bookingStore.getRoster(targetClassId);
     expect(finalRoster.length).toBe(4);
   });
 });

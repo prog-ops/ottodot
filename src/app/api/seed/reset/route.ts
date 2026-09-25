@@ -14,7 +14,7 @@ export async function POST(): Promise<NextResponse<ResetApiResponse>> {
     return NextResponse.json({
       success: true,
       message: 'Seed data successfully reset to initial state.',
-      classes: bookingStore.getTrialClasses(),
+      classes: await bookingStore.getTrialClasses(),
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to reset seed data';

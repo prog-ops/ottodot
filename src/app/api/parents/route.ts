@@ -4,8 +4,10 @@ import { ParentsApiResponse } from '@/types';
 
 export async function GET(): Promise<NextResponse<ParentsApiResponse>> {
   try {
-    const parents = bookingStore.getParents();
-    const students = bookingStore.getStudents();
+    const [parents, students] = await Promise.all([
+      bookingStore.getParents(),
+      bookingStore.getStudents(),
+    ]);
 
     const data = parents.map((p) => ({
       ...p,
