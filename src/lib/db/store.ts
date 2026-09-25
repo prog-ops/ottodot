@@ -370,49 +370,90 @@ class UnifiedBookingStore {
 
   async getParents(): Promise<Parent[]> {
     if (isSupabaseConfigured) {
-      return supabaseStore.getParents();
+      try {
+        const parents = await supabaseStore.getParents();
+        if (Array.isArray(parents) && parents.length > 0) {
+          return parents;
+        }
+      } catch (err) {
+        console.error('Failed to get parents from Supabase, using seed fallback:', err);
+      }
     }
     return this.inMemoryStore.getParents();
   }
 
   async getStudents(parentId?: string): Promise<Student[]> {
     if (isSupabaseConfigured) {
-      return supabaseStore.getStudents(parentId);
+      try {
+        const students = await supabaseStore.getStudents(parentId);
+        if (Array.isArray(students) && students.length > 0) {
+          return students;
+        }
+      } catch (err) {
+        console.error('Failed to get students from Supabase, using seed fallback:', err);
+      }
     }
     return this.inMemoryStore.getStudents(parentId);
   }
 
   async getTrialClasses(): Promise<TrialClass[]> {
     if (isSupabaseConfigured) {
-      return supabaseStore.getTrialClasses();
+      try {
+        const classes = await supabaseStore.getTrialClasses();
+        if (Array.isArray(classes) && classes.length > 0) {
+          return classes;
+        }
+      } catch (err) {
+        console.error('Failed to get classes from Supabase, using seed fallback:', err);
+      }
     }
     return this.inMemoryStore.getTrialClasses();
   }
 
   async getTrialClassById(id: string): Promise<TrialClass | undefined> {
     if (isSupabaseConfigured) {
-      return supabaseStore.getTrialClassById(id);
+      try {
+        const cls = await supabaseStore.getTrialClassById(id);
+        if (cls) return cls;
+      } catch (err) {
+        console.error('Failed to get class by id from Supabase, using seed fallback:', err);
+      }
     }
     return this.inMemoryStore.getTrialClassById(id);
   }
 
   async getRoster(classId?: string): Promise<RosterEntry[]> {
     if (isSupabaseConfigured) {
-      return supabaseStore.getRoster(classId);
+      try {
+        const roster = await supabaseStore.getRoster(classId);
+        if (Array.isArray(roster) && roster.length > 0) {
+          return roster;
+        }
+      } catch (err) {
+        console.error('Failed to get roster from Supabase, using seed fallback:', err);
+      }
     }
     return this.inMemoryStore.getRoster(classId);
   }
 
   async reserveBooking(input: ReserveBookingInput): Promise<BookingResult> {
     if (isSupabaseConfigured) {
-      return supabaseStore.reserveBooking(input);
+      try {
+        return await supabaseStore.reserveBooking(input);
+      } catch (err) {
+        console.error('Failed to reserve booking in Supabase, falling back to local:', err);
+      }
     }
     return this.inMemoryStore.reserveBooking(input);
   }
 
   async processPayment(input: ProcessPaymentInput): Promise<BookingResult> {
     if (isSupabaseConfigured) {
-      return supabaseStore.processPayment(input);
+      try {
+        return await supabaseStore.processPayment(input);
+      } catch (err) {
+        console.error('Failed to process payment in Supabase, falling back to local:', err);
+      }
     }
     return this.inMemoryStore.processPayment(input);
   }

@@ -13,16 +13,21 @@ export default async function Page() {
     bookingStore.getRoster(),
   ]);
 
-  const parentsWithStudents: ParentWithStudents[] = parents.map((p) => ({
+  const safeParents = Array.isArray(parents) ? parents : [];
+  const safeStudents = Array.isArray(students) ? students : [];
+  const safeClasses = Array.isArray(classes) ? classes : [];
+  const safeRoster = Array.isArray(roster) ? roster : [];
+
+  const parentsWithStudents: ParentWithStudents[] = safeParents.map((p) => ({
     ...p,
-    students: students.filter((s) => s.parent_id === p.id),
+    students: safeStudents.filter((s) => s.parent_id === p.id),
   }));
 
   return (
     <TrialBookingApp
-      initialClasses={classes}
+      initialClasses={safeClasses}
       initialParents={parentsWithStudents}
-      initialRoster={roster}
+      initialRoster={safeRoster}
     />
   );
 }
