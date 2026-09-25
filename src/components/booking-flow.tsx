@@ -4,24 +4,21 @@ import React, { useState } from 'react';
 import { TrialClass, ParentWithStudents, Booking, BookingResult } from '@/types';
 
 interface BookingFlowProps {
-  initialClasses: TrialClass[];
-  initialParents: ParentWithStudents[];
+  classes: TrialClass[];
+  parents: ParentWithStudents[];
   onBookingSuccess: () => void;
 }
 
 export function BookingFlow({
-  initialClasses,
-  initialParents,
+  classes,
+  parents,
   onBookingSuccess,
 }: BookingFlowProps) {
-  const [classes] = useState<TrialClass[]>(initialClasses);
-  const [parents] = useState<ParentWithStudents[]>(initialParents);
-
   const [selectedParentId, setSelectedParentId] = useState<string>(
-    initialParents[0]?.id ?? ''
+    parents[0]?.id ?? ''
   );
   const [selectedStudentId, setSelectedStudentId] = useState<string>(
-    initialParents[0]?.students[0]?.id ?? ''
+    parents[0]?.students[0]?.id ?? ''
   );
   const [selectedClassId, setSelectedClassId] = useState<string>('');
 

@@ -21,6 +21,10 @@ export function TrialBookingApp({
 }: TrialBookingAppProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'booking' | 'roster' | 'simulator'>('booking');
+  const [classes, setClasses] = useState<TrialClass[]>(initialClasses);
+  const [parents] = useState<ParentWithStudents[]>(initialParents);
+  const [roster, setRoster] = useState<RosterEntry[]>(initialRoster);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -31,12 +35,41 @@ export function TrialBookingApp({
     }, 4000);
   };
 
+  const fetchLatestData = async () => {
+    setIsSyncing(true);
+    try {
+      const [classesRes, rosterRes] = await Promise.all([
+        fetch('/api/classes').then((r) => r.json()),
+        fetch('/api/roster').then((r) => r.json()),
+      ]);
+
+      if (classesRes.success && Array.isArray(classesRes.data)) {
+        setClasses(classesRes.data);
+      }
+      if (rosterRes.success && Array.isArray(rosterRes.data)) {
+        setRoster(rosterRes.data);
+      }
+    } catch (err: unknown) {
+      console.error('Error syncing latest data:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleTabChange = (tab: 'booking' | 'roster' | 'simulator') => {
+    setActiveTab(tab);
+    if (tab === 'roster' || tab === 'booking') {
+      fetchLatestData();
+    }
+  };
+
   const handleResetSeed = async () => {
     setIsResetting(true);
     try {
       const res = await fetch('/api/seed/reset', { method: 'POST' });
       if (res.ok) {
         showToast('Database reset to initial synthetic seed data.');
+        await fetchLatestData();
         router.refresh();
       }
     } catch (err: unknown) {
@@ -46,7 +79,14 @@ export function TrialBookingApp({
     }
   };
 
-  const handleRefreshData = () => {
+  const handleBookingSuccess = async () => {
+    await fetchLatestData();
+    showToast('🎉 Booking confirmed! The student is now on the Teacher Roster.');
+    router.refresh();
+  };
+
+  const handleSimulationCompleted = async () => {
+    await fetchLatestData();
     router.refresh();
   };
 
@@ -70,7 +110,7 @@ export function TrialBookingApp({
           {/* Navigation Controls */}
           <div className="flex items-center space-x-3">
             <button
-              onClick={() => setActiveTab('booking')}
+              onClick={() => handleTabChange('booking')}
               className={`px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm ${
                 activeTab === 'booking'
                   ? 'bg-amber-600 text-white'
@@ -80,17 +120,17 @@ export function TrialBookingApp({
               1. Book a Trial
             </button>
             <button
-              onClick={() => setActiveTab('roster')}
+              onClick={() => handleTabChange('roster')}
               className={`px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm ${
                 activeTab === 'roster'
                   ? 'bg-emerald-700 text-white'
                   : 'bg-slate-800 text-white hover:bg-slate-700'
               }`}
             >
-              2. Teacher Roster
+              2. Teacher Roster ({roster.length})
             </button>
             <button
-              onClick={() => setActiveTab('simulator')}
+              onClick={() => handleTabChange('simulator')}
               className={`px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm ${
                 activeTab === 'simulator'
                   ? 'bg-red-800 text-white'
@@ -128,21 +168,23 @@ export function TrialBookingApp({
         {/* Tab Content */}
         {activeTab === 'booking' && (
           <BookingFlow
-            initialClasses={initialClasses}
-            initialParents={initialParents}
-            onBookingSuccess={handleRefreshData}
+            classes={classes}
+            parents={parents}
+            onBookingSuccess={handleBookingSuccess}
           />
         )}
 
         {activeTab === 'roster' && (
           <RosterView
-            initialClasses={initialClasses}
-            initialRoster={initialRoster}
+            classes={classes}
+            roster={roster}
+            onRefresh={fetchLatestData}
+            isRefreshing={isSyncing}
           />
         )}
 
         {activeTab === 'simulator' && (
-          <RaceSimulator onSimulationCompleted={handleRefreshData} />
+          <RaceSimulator onSimulationCompleted={handleSimulationCompleted} />
         )}
       </main>
 

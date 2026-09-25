@@ -5,13 +5,18 @@ import { TrialClass, RosterEntry } from '@/types';
 import { FormattedTime } from './ui/formatted-time';
 
 interface RosterViewProps {
-  initialClasses: TrialClass[];
-  initialRoster: RosterEntry[];
+  classes: TrialClass[];
+  roster: RosterEntry[];
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
-export function RosterView({ initialClasses, initialRoster }: RosterViewProps) {
-  const [classes] = useState<TrialClass[]>(initialClasses);
-  const [roster] = useState<RosterEntry[]>(initialRoster);
+export function RosterView({
+  classes,
+  roster,
+  onRefresh,
+  isRefreshing = false,
+}: RosterViewProps) {
   const [filterClassId, setFilterClassId] = useState<string>('all');
 
   const filteredRoster =
@@ -77,25 +82,38 @@ export function RosterView({ initialClasses, initialRoster }: RosterViewProps) {
 
       {/* Filter Controls & Invariant Badge */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900 p-4 rounded-2xl shadow-sm">
-        <div className="flex items-center space-x-2">
-          <span className="text-xs font-bold uppercase text-slate-300">Filter Class:</span>
-          <select
-            value={filterClassId}
-            onChange={(e) => setFilterClassId(e.target.value)}
-            className="bg-slate-800 text-xs font-bold rounded-xl px-3 py-2 text-white focus:outline-none"
-          >
-            <option value="all">All Classes ({roster.length} confirmed students)</option>
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.title} ({c.confirmed_count}/4)
-              </option>
-            ))}
-          </select>
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-bold uppercase text-slate-300">Filter Class:</span>
+            <select
+              value={filterClassId}
+              onChange={(e) => setFilterClassId(e.target.value)}
+              className="bg-slate-800 text-xs font-bold rounded-xl px-3 py-2 text-white focus:outline-none"
+            >
+              <option value="all">All Classes ({roster.length} confirmed students)</option>
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title} ({c.confirmed_count}/4)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {onRefresh && (
+            <button
+              disabled={isRefreshing}
+              onClick={onRefresh}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-amber-300 transition-all flex items-center space-x-1.5 shadow-sm disabled:opacity-50"
+            >
+              <span>{isRefreshing ? '⏳' : '🔄'}</span>
+              <span>{isRefreshing ? 'Syncing...' : 'Sync Roster'}</span>
+            </button>
+          )}
         </div>
 
         <div className="text-xs italic text-amber-200 flex items-center space-x-1">
           <span>🛡️</span>
-          <span>Invariants verified: Failed/pending bookings are completely excluded from this roster.</span>
+          <span>Only students with confirmed payments appear on this official roster.</span>
         </div>
       </div>
 
@@ -142,7 +160,9 @@ export function RosterView({ initialClasses, initialRoster }: RosterViewProps) {
         <div className="bg-slate-800 rounded-3xl p-12 text-center flex flex-col items-center justify-center space-y-2">
           <span className="text-4xl">📋</span>
           <p className="text-base font-bold text-white">No confirmed students found</p>
-          <p className="text-xs text-slate-300 italic">No bookings have been confirmed for this selection.</p>
+          <p className="text-xs text-slate-300 italic">
+            No bookings have been confirmed for this selection. (Pending payments do not appear here).
+          </p>
         </div>
       )}
     </div>
