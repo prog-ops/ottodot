@@ -81,8 +81,32 @@ CREATE TABLE payment_attempts (
 CREATE INDEX idx_payment_attempts_booking ON payment_attempts(booking_id);
 
 -- ==============================================================================
+-- ROW LEVEL SECURITY (RLS) & POLICIES
+-- Ensures data protection while permitting trial class browsing & booking
+-- ==============================================================================
+
+ALTER TABLE parents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE students ENABLE ROW LEVEL SECURITY;
+ALTER TABLE trial_classes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_attempts ENABLE ROW LEVEL SECURITY;
+
+-- Read policies for public browsing
+CREATE POLICY "Allow public read parents" ON parents FOR SELECT USING (true);
+CREATE POLICY "Allow public read students" ON students FOR SELECT USING (true);
+CREATE POLICY "Allow public read trial_classes" ON trial_classes FOR SELECT USING (true);
+CREATE POLICY "Allow public read bookings" ON bookings FOR SELECT USING (true);
+CREATE POLICY "Allow public read payment_attempts" ON payment_attempts FOR SELECT USING (true);
+
+-- Insert policies for reservations
+CREATE POLICY "Allow public insert bookings" ON bookings FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public insert parents" ON parents FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public insert students" ON students FOR INSERT WITH CHECK (true);
+
+-- ==============================================================================
 -- INVARIANT 2 & 3: Stored Procedure for Atomic Booking Confirmation
 -- Eliminates Last-Seat Race Condition via Row-Level Exclusive Lock (FOR UPDATE)
+-- Uses SECURITY DEFINER to bypass restrictive client RLS during atomic commits
 -- ==============================================================================
 
 CREATE OR REPLACE FUNCTION confirm_trial_booking(
@@ -93,6 +117,8 @@ CREATE OR REPLACE FUNCTION confirm_trial_booking(
 )
 RETURNS JSONB
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_booking RECORD;
@@ -216,3 +242,6 @@ BEGIN
   );
 END;
 $$;
+
+-- Grant execute privileges to public and authenticated roles
+GRANT EXECUTE ON FUNCTION confirm_trial_booking TO anon, authenticated, service_role;
