@@ -2,6 +2,10 @@
 
 A high-reliability trial class booking slice designed for **Ottodot** (live online science & math classes for kids). This project guarantees critical system invariants under high concurrency, payment failures, and double-booking attempts—specifically solving the **Last-Seat Race Condition** where multiple parents compete for the 4th and final seat of a class.
 
+> 🚀 **Live Production Demo**: [https://ottodot-tan.vercel.app](https://ottodot-tan.vercel.app)  
+> 📦 **GitHub Repository**: [prog-ops/ottodot (branch: utama)](https://github.com/prog-ops/ottodot)  
+> 🗄️ **Database**: Supabase PostgreSQL with Row-Level Locking (`SELECT FOR UPDATE`), Stored Procedure RPC, and Partial Unique Indexes.
+
 ---
 
 ## 1. Quick Start: How to Run
@@ -215,6 +219,26 @@ We implemented a built-in, lightweight monitoring subsystem accessible via **UI 
 ## 10. What We Would Do Next With More Time
 
 1. **Stripe PaymentIntents with 2-Step Authorization & Capture**: Implement `stripe.paymentIntents.create` with `capture_method: 'manual'`, verifying the class seat under database lock before calling `capture()`. If full, call `stripe.paymentIntents.cancel()` with zero charge to the parent.
-2. **10-Minute Hold Reservation TTL**: Implement temporary seat holds using Redis or Postgres timestamp leases (`reserved_until = now() + interval '10 minutes'`) so parents have a guaranteed window to fill card details.
+2. **10-Minute Hold Reservation TTL via Distributed Store**: Expand our in-memory hold lease timer to an asynchronous Redis / Postgres background worker that automatically expires orphaned `pending_payment` rows.
 3. **Waitlist System**: Automatically offer the 5th interested parent the option to join a waitlist or be notified if another class section opens.
 4. **Teacher Portal with Live Attendance & Zoom Link Dispatch**: Add attendance checkboxes for teachers and automatic video room generation once 4 seats are confirmed.
+
+---
+
+## 11. Value-Add Features & Beyond-Prompt Enhancements (Daftar Fitur Tambahan)
+
+While the core challenge focused on the four invariant requirements and the Last-Seat Race condition, we introduced several production-grade enhancements to deliver a complete, realistic, and delightful user experience:
+
+| # | Feature / Enhancement | Description & Technical Rationale | File / Location |
+| :--- | :--- | :--- | :--- |
+| **1** | **Live System Invariants Monitoring Dashboard** | Built-in UI tab and public API (`GET /api/monitoring`) that dynamically asserts zero overbooking (`count <= 4`), zero duplicate bookings, capacity utilization %, and displays a live payment gateway audit log. | `src/components/monitoring-dashboard.tsx`<br>`src/app/api/monitoring/route.ts` |
+| **2** | **Dynamic Custom Child Registration (`+ Add Child`)** | Enables evaluators to register any custom student name (e.g., *"Maya Tanaka"*, Age 7) without manually modifying database rows. Uses validated input constraints (`age 4-16`). | `src/components/booking-flow.tsx`<br>`src/app/api/students/route.ts` |
+| **3** | **Interactive 10-Minute Hold Lease Countdown Timer** | When a slot is held with status `pending_payment`, an active `09:59` countdown visualizes temporary seat reservation lease. If the timer expires, the hold is safely released. | `src/components/booking-flow.tsx` |
+| **4** | **Dual-Engine Fault-Tolerant Store Architecture** | Automatically connects to remote **Supabase PostgreSQL** with stored procedures and row locks when environment keys exist; seamlessly falls back to a zero-dependency **In-Memory ACID Mutex** (`AsyncClassMutex`) offline or in CI tests. | `src/lib/db/store.ts`<br>`src/lib/db/supabase-store.ts` |
+| **5** | **Interactive Last-Seat Race Simulator Lab** | Built-in visualization tab that fires concurrent payment requests between User A and User B, providing step-by-step telemetry logs and real-time roster verification. | `src/components/race-simulator.tsx`<br>`src/app/api/simulate-race/route.ts` |
+| **6** | **Rich Post-Payment Confirmation Receipt** | On booking confirmation, renders a transaction summary with simulated Zoom classroom URL (`https://zoom.us/j/...`) and automated parent calendar/email dispatch confirmation. | `src/components/booking-flow.tsx` |
+| **7** | **In-App One-Click Seed State Reset (`🔄 Reset Seed`)** | Instant button in the app header and monitoring dashboard calling `POST /api/seed/reset`, allowing testers to reset demo data anytime without opening database consoles. | `src/components/trial-booking-app.tsx`<br>`src/app/api/seed/reset/route.ts` |
+| **8** | **Hydration-Safe Light/Dark Mode Theme Switcher** | Designed according to Ottodot's kid-centric color-block palette with strict no-border rules, WCAG contrast compliance, and hydration-mismatch protection. | `src/components/theme-toggle.tsx` |
+| **9** | **Full Next.js API Integration Test Suite** | 17 automated tests (103 assertions) covering all REST endpoints (`/api/classes`, `/api/parents`, `/api/roster`, `/api/bookings/*`, `/api/simulate-race`, `/api/monitoring`, `/api/students`) executing in ~110ms with `bun test`. | `tests/api-routes.test.ts`<br>`tests/booking-reliability.test.ts` |
+| **10** | **Header Invariant Health Badge** | Real-time status indicator (`🟢 Invariants: 100% Passing`) displayed in the navigation bar to immediately communicate system reliability to visitors. | `src/components/trial-booking-app.tsx` |
+

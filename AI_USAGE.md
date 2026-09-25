@@ -63,14 +63,17 @@ If repeating this project, I would adopt a **"Schema-First, Test-First Verificat
 
 The implementation was validated through four distinct layers of verification:
 
-1. **Automated Invariant Test Suite (`bun test`)**:
-   - `Test 1`: Verified that duplicate confirmed bookings for the same child and class are rejected (`DUPLICATE_BOOKING (409)`).
-   - `Test 2`: Verified that booking a class with 4 confirmed students is rejected (`CLASS_FULL (400)`).
-   - `Test 3`: Verified that a simulated payment decline marks the booking as `payment_failed` and does **not** add the child to the confirmed roster.
-   - `Test 4`: Verified the Last-Seat Race: User A and User B concurrently compete for the 4th seat; User B confirms first, User A is atomically rejected, and roster count remains strictly 4.
-   - `Test 5`: Concurrency stress test firing 10 simultaneous payment requests for 1 remaining seat via `Promise.all`. Verified that exactly 1 succeeds and 9 fail with `CLASS_FULL`.
+1. **Automated Dual-Suite Test Harness (`bun test` - 17 tests, 103 assertions)**:
+   - **`tests/booking-reliability.test.ts` (Domain Invariant Suite)**:
+     - `Test 1`: Verified that duplicate confirmed bookings for the same child and class are rejected (`DUPLICATE_BOOKING (409)`).
+     - `Test 2`: Verified that booking a class with 4 confirmed students is rejected (`CLASS_FULL (400)`).
+     - `Test 3`: Verified that a simulated payment decline marks the booking as `payment_failed` and does **not** add the child to the confirmed roster.
+     - `Test 4`: Verified the Last-Seat Race: User A and User B concurrently compete for the 4th seat; User B confirms first, User A is atomically rejected, and roster count remains strictly 4.
+     - `Test 5`: Concurrency stress test firing 10 simultaneous payment requests for 1 remaining seat via `Promise.all`. Verified that exactly 1 succeeds and 9 fail with `CLASS_FULL`.
+   - **`tests/api-routes.test.ts` (Full Next.js REST API Integration Suite)**:
+     - Tests 1-12 covering `GET /api/classes`, `GET /api/parents`, `GET /api/roster` (with filters), `POST /api/bookings/reserve` (validations, duplicates, full), `POST /api/bookings/pay` (declines, atomic confirmation), `POST /api/simulate-race`, `POST /api/seed/reset`, `GET /api/monitoring`, and `POST /api/students` (custom child registration).
 2. **Production Type Checking & Build (`bun run build`)**:
-   - Compiled Next.js App Router and all TypeScript definitions with zero errors.
+   - Compiled Next.js App Router and all TypeScript definitions with zero errors across all 11 application and API routes.
 3. **Interactive Visual Simulator (`/api/simulate-race`)**:
    - Executed the race condition live in the browser, inspecting the step-by-step telemetry logs and confirming that the final roster snapshot contains exactly 4 students.
 4. **Codebase Review**:
