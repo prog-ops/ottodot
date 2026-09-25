@@ -169,7 +169,7 @@ class InMemoryBookingStore {
       if (!cls) {
         return {
           success: false,
-          booking: null as unknown as Booking,
+          booking: null,
           error_code: 'BOOKING_NOT_FOUND',
           message: 'Trial class does not exist.',
         };
@@ -198,7 +198,7 @@ class InMemoryBookingStore {
       if (confirmedCount >= cls.capacity) {
         return {
           success: false,
-          booking: null as unknown as Booking,
+          booking: null,
           error_code: 'CLASS_FULL',
           message: `Class has reached its maximum capacity of ${cls.capacity} students.`,
         };
@@ -237,7 +237,7 @@ class InMemoryBookingStore {
     if (!booking) {
       return {
         success: false,
-        booking: null as unknown as Booking,
+        booking: null,
         error_code: 'BOOKING_NOT_FOUND',
         message: 'Booking not found.',
       };

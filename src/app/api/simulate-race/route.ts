@@ -1,21 +1,15 @@
 import { NextResponse } from 'next/server';
 import { bookingStore } from '@/lib/db/store';
+import { RaceSimulationLog, RaceSimulationResponse } from '@/types';
 
-export async function POST() {
-  const logs: Array<{
-    step: number;
-    actor: 'User A' | 'User B' | 'System';
-    action: string;
-    status: 'info' | 'success' | 'warning' | 'error';
-    timestamp: string;
-    details?: any;
-  }> = [];
+export async function POST(): Promise<NextResponse<RaceSimulationResponse>> {
+  const logs: RaceSimulationLog[] = [];
 
   const addLog = (
     actor: 'User A' | 'User B' | 'System',
     action: string,
     status: 'info' | 'success' | 'warning' | 'error',
-    details?: any
+    details?: Record<string, unknown>
   ) => {
     logs.push({
       step: logs.length + 1,
@@ -83,9 +77,9 @@ export async function POST() {
     });
 
     if (payB.success) {
-      addLog('User B', `Payment SUCCEEDED! Booking status changed to "confirmed". Seat 4 allocated to User B.`, 'success', {
-        confirmed_at: payB.booking.confirmed_at,
-        tx_id: payB.payment_attempt?.transaction_id,
+      addLog('User B', 'Payment SUCCEEDED! Booking status changed to "confirmed". Seat 4 allocated to User B.', 'success', {
+        confirmed_at: payB.booking.confirmed_at ?? '',
+        tx_id: payB.payment_attempt?.transaction_id ?? '',
       });
     } else {
       throw new Error(`User B payment failed unexpectedly: ${payB.message}`);
@@ -100,11 +94,11 @@ export async function POST() {
     });
 
     if (!payA.success && payA.error_code === 'CLASS_FULL') {
-      addLog('User A', `Payment REJECTED ATOMICALLY: "${payA.message}". Status marked as "${payA.booking.status}". Child was NOT added to roster.`, 'error', {
-        failure_reason: payA.payment_attempt?.failure_reason,
+      addLog('User A', `Payment REJECTED ATOMICALLY: "${payA.message}". Status marked as "${payA.booking ? payA.booking.status : 'payment_failed'}". Child was NOT added to roster.`, 'error', {
+        failure_reason: payA.payment_attempt?.failure_reason ?? '',
       });
     } else {
-      throw new Error(`CRITICAL INVARIANT VIOLATION: User A was confirmed despite class being full! Result: ${JSON.stringify(payA)}`);
+      throw new Error(`CRITICAL INVARIANT VIOLATION: User A was confirmed despite class being full!`);
     }
 
     // Step 5: Final Invariant Verification on Roster
@@ -127,10 +121,17 @@ export async function POST() {
       roster: finalRoster,
       logs,
     });
-  } catch (error: any) {
-    addLog('System', `Simulation aborted due to error: ${error.message}`, 'error');
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Simulation aborted due to an unexpected error';
+    addLog('System', `Simulation aborted due to error: ${message}`, 'error');
     return NextResponse.json(
-      { success: false, message: error.message, logs },
+      {
+        success: false,
+        invariant_passed: false,
+        roster: [],
+        logs,
+        message,
+      },
       { status: 500 }
     );
   }

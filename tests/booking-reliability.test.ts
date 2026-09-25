@@ -15,7 +15,7 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
 
     // Verify student already exists in confirmed roster
     const rosterBefore = bookingStore.getRoster(targetClassId);
-    expect(rosterBefore.some(r => r.student_id === studentId)).toBe(true);
+    expect(rosterBefore.some((r) => r.student_id === studentId)).toBe(true);
 
     // Attempt 1: Try to reserve again for the same child and class
     const reserveResult = await bookingStore.reserveBooking({
@@ -25,8 +25,10 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
     });
 
     expect(reserveResult.success).toBe(false);
-    expect(reserveResult.error_code).toBe('DUPLICATE_BOOKING');
-    expect(reserveResult.message).toContain('already has a confirmed seat');
+    if (!reserveResult.success) {
+      expect(reserveResult.error_code).toBe('DUPLICATE_BOOKING');
+      expect(reserveResult.message).toContain('already has a confirmed seat');
+    }
 
     // Verify roster count did NOT increase
     const rosterAfter = bookingStore.getRoster(targetClassId);
@@ -51,8 +53,10 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
     });
 
     expect(reserveResult.success).toBe(false);
-    expect(reserveResult.error_code).toBe('CLASS_FULL');
-    expect(reserveResult.message).toContain('maximum capacity of 4 students');
+    if (!reserveResult.success) {
+      expect(reserveResult.error_code).toBe('CLASS_FULL');
+      expect(reserveResult.message).toContain('maximum capacity of 4 students');
+    }
 
     // Verify roster remains strictly 4
     const roster = bookingStore.getRoster(fullClassId);
@@ -75,6 +79,9 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
     });
 
     expect(reserveResult.success).toBe(true);
+    if (!reserveResult.success || !reserveResult.booking) {
+      throw new Error('Reservation should have succeeded');
+    }
     expect(reserveResult.booking.status).toBe('pending_payment');
 
     // 2. Submit payment with SIMULATED FAILURE (e.g. card declined)
@@ -84,14 +91,16 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
     });
 
     expect(paymentResult.success).toBe(false);
-    expect(paymentResult.error_code).toBe('PAYMENT_FAILED');
-    expect(paymentResult.booking.status).toBe('payment_failed');
-    expect(paymentResult.payment_attempt?.status).toBe('failed');
+    if (!paymentResult.success) {
+      expect(paymentResult.error_code).toBe('PAYMENT_FAILED');
+      expect(paymentResult.booking?.status).toBe('payment_failed');
+      expect(paymentResult.payment_attempt?.status).toBe('failed');
+    }
 
     // 3. CRITICAL INVARIANT: Student must NOT appear on confirmed roster!
     const rosterAfterFailure = bookingStore.getRoster(targetClassId);
     expect(rosterAfterFailure.length).toBe(initialRosterCount);
-    expect(rosterAfterFailure.some(r => r.student_id === studentId)).toBe(false);
+    expect(rosterAfterFailure.some((r) => r.student_id === studentId)).toBe(false);
   });
 
   test('4. Handles Last-Seat Race Condition: User A and User B compete for 1 remaining seat', async () => {
@@ -108,6 +117,7 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
       parent_id: 'parent-5',
     });
     expect(userAReserve.success).toBe(true);
+    if (!userAReserve.success || !userAReserve.booking) throw new Error('User A reserve failed');
 
     // 2. User B selects the same slot while User A is on payment screen
     const userBReserve = await bookingStore.reserveBooking({
@@ -116,6 +126,7 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
       parent_id: 'parent-1',
     });
     expect(userBReserve.success).toBe(true);
+    if (!userBReserve.success || !userBReserve.booking) throw new Error('User B reserve failed');
 
     // 3. User B completes payment FIRST and confirms the booking
     const userBPayment = await bookingStore.processPayment({
@@ -124,7 +135,9 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
       payment_token: 'tok_user_b_first',
     });
     expect(userBPayment.success).toBe(true);
-    expect(userBPayment.booking.status).toBe('confirmed');
+    if (userBPayment.success) {
+      expect(userBPayment.booking.status).toBe('confirmed');
+    }
 
     // 4. User A then tries to complete payment
     const userAPayment = await bookingStore.processPayment({
@@ -135,14 +148,16 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
 
     // INVARIANT: At most ONE user can end up with a confirmed booking for the last available seat!
     expect(userAPayment.success).toBe(false);
-    expect(userAPayment.error_code).toBe('CLASS_FULL');
-    expect(userAPayment.booking.status).toBe('payment_failed');
+    if (!userAPayment.success) {
+      expect(userAPayment.error_code).toBe('CLASS_FULL');
+      expect(userAPayment.booking?.status).toBe('payment_failed');
+    }
 
     // Verify roster: Total confirmed students is strictly 4 (User B confirmed, User A omitted)
     const finalRoster = bookingStore.getRoster(targetClassId);
     expect(finalRoster.length).toBe(4);
-    expect(finalRoster.some(r => r.student_id === 'student-6')).toBe(true); // User B present
-    expect(finalRoster.some(r => r.student_id === 'student-5')).toBe(false); // User A absent
+    expect(finalRoster.some((r) => r.student_id === 'student-6')).toBe(true); // User B present
+    expect(finalRoster.some((r) => r.student_id === 'student-5')).toBe(false); // User A absent
   });
 
   test('5. Massive Concurrency Stress Test: 10 concurrent payment requests for 1 remaining seat', async () => {
@@ -161,7 +176,12 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
     );
 
     // Verify all 10 were initially able to reserve pending bookings
-    const validBookingIds = reservations.map(r => r.booking.id);
+    const validBookingIds: string[] = [];
+    for (const r of reservations) {
+      if (r.success && r.booking) {
+        validBookingIds.push(r.booking.id);
+      }
+    }
     expect(validBookingIds.length).toBe(10);
 
     // FIRE ALL 10 PAYMENTS SIMULTANEOUSLY USING Promise.all
@@ -176,15 +196,15 @@ describe('Trial Booking Reliability & Invariants Test Suite', () => {
     );
 
     // ATOMICITY AUDIT:
-    const successes = paymentResults.filter(p => p.success);
-    const failures = paymentResults.filter(p => !p.success);
+    const successes = paymentResults.filter((p) => p.success);
+    const failures = paymentResults.filter((p) => !p.success);
 
     // Exactly 1 must succeed
     expect(successes.length).toBe(1);
     // Exactly 9 must fail
     expect(failures.length).toBe(9);
     // All failures must be CLASS_FULL
-    expect(failures.every(f => f.error_code === 'CLASS_FULL')).toBe(true);
+    expect(failures.every((f) => !f.success && f.error_code === 'CLASS_FULL')).toBe(true);
 
     // Hard Invariant: Final confirmed count must be EXACTLY 4
     const finalRoster = bookingStore.getRoster(targetClassId);

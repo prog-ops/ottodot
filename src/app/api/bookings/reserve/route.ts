@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { bookingStore } from '@/lib/db/store';
-import { ReserveBookingInput } from '@/types';
+import { ReserveBookingInput, BookingResult } from '@/types';
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse<BookingResult>> {
   try {
-    const body = (await request.json()) as ReserveBookingInput;
+    const body = (await request.json()) as Partial<ReserveBookingInput>;
 
     if (!body.trial_class_id || !body.student_id || !body.parent_id) {
       return NextResponse.json(
-        { success: false, message: 'Missing required fields: trial_class_id, student_id, parent_id' },
+        {
+          success: false,
+          booking: null,
+          error_code: 'BOOKING_NOT_FOUND',
+          message: 'Missing required fields: trial_class_id, student_id, parent_id',
+        },
         { status: 400 }
       );
     }
@@ -25,9 +30,15 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(result, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to create reservation';
     return NextResponse.json(
-      { success: false, message: error.message || 'Failed to create reservation' },
+      {
+        success: false,
+        booking: null,
+        error_code: 'INVALID_STATUS',
+        message,
+      },
       { status: 500 }
     );
   }
