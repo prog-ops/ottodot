@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TrialClass, ParentWithStudents, Booking, BookingResult } from '@/types';
 
 interface BookingFlowProps {
@@ -14,6 +14,7 @@ export function BookingFlow({
   parents,
   onBookingSuccess,
 }: BookingFlowProps) {
+  const [localParents, setLocalParents] = useState<ParentWithStudents[]>(parents);
   const [selectedParentId, setSelectedParentId] = useState<string>(
     parents[0]?.id ?? ''
   );
@@ -31,13 +32,105 @@ export function BookingFlow({
     type: 'success' | 'error' | 'info';
   } | null>(null);
 
+  // Quick-Add Child State
+  const [showAddChildModal, setShowAddChildModal] = useState(false);
+  const [newChildName, setNewChildName] = useState('');
+  const [newChildAge, setNewChildAge] = useState(7);
+  const [isAddingChild, setIsAddingChild] = useState(false);
+
+  // 10-Minute Hold Lease Countdown Timer
+  const [holdSecondsLeft, setHoldSecondsLeft] = useState<number>(600);
+
+  useEffect(() => {
+    setLocalParents(parents);
+  }, [parents]);
+
+  useEffect(() => {
+    if (!pendingBooking) {
+      setHoldSecondsLeft(600);
+      return;
+    }
+    const timer = setInterval(() => {
+      setHoldSecondsLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setPendingBooking(null);
+          setNotification({
+            text: 'Reservation lease expired. Seat slot released.',
+            type: 'error',
+          });
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [pendingBooking]);
+
+  const formatHoldTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
   const handleParentChange = (parentId: string) => {
     setSelectedParentId(parentId);
-    const parent = parents.find((p) => p.id === parentId);
+    const parent = localParents.find((p) => p.id === parentId);
     if (parent && parent.students.length > 0) {
       setSelectedStudentId(parent.students[0].id);
     } else {
       setSelectedStudentId('');
+    }
+  };
+
+  const handleAddChild = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newChildName.trim() || !selectedParentId) return;
+
+    setIsAddingChild(true);
+    try {
+      const res = await fetch('/api/students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          parent_id: selectedParentId,
+          name: newChildName.trim(),
+          age: Number(newChildAge),
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        const createdStudent = json.data;
+        setLocalParents((prev) =>
+          prev.map((p) => {
+            if (p.id === selectedParentId) {
+              return {
+                ...p,
+                students: [...p.students, createdStudent],
+              };
+            }
+            return p;
+          })
+        );
+        setSelectedStudentId(createdStudent.id);
+        setShowAddChildModal(false);
+        setNewChildName('');
+        setNotification({
+          text: `✓ Registered "${createdStudent.name}" (Age ${createdStudent.age})! Selected for booking.`,
+          type: 'success',
+        });
+      } else {
+        setNotification({
+          text: json.message || 'Failed to add student',
+          type: 'error',
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error adding student';
+      setNotification({ text: msg, type: 'error' });
+    } finally {
+      setIsAddingChild(false);
     }
   };
 
@@ -125,7 +218,7 @@ export function BookingFlow({
     }
   };
 
-  const currentSelectedParent = parents.find((p) => p.id === selectedParentId);
+  const currentSelectedParent = localParents.find((p) => p.id === selectedParentId);
   const currentSelectedClass = classes.find((c) => c.id === selectedClassId);
 
   return (
@@ -160,7 +253,7 @@ export function BookingFlow({
               <h2 className="text-lg font-bold text-white">Step 1: Pick Parent & Child</h2>
             </div>
             <p className="text-xs italic text-amber-100">
-              Select a parent from seed data to test duplicate bookings or new trial reservations.
+              Select a parent from seed data or register a custom child to test any scenario.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
@@ -174,7 +267,7 @@ export function BookingFlow({
                   onChange={(e) => handleParentChange(e.target.value)}
                   className="w-full bg-amber-900 rounded-2xl px-4 py-3 text-sm font-bold text-white focus:outline-none"
                 >
-                  {parents.map((p) => (
+                  {localParents.map((p) => (
                     <option key={p.id} value={p.id} className="bg-slate-900 text-white">
                       {p.name} ({p.email})
                     </option>
@@ -184,9 +277,18 @@ export function BookingFlow({
 
               {/* Student Dropdown */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-white">
-                  Child (Student)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-white">
+                    Child (Student)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddChildModal(!showAddChildModal)}
+                    className="text-[11px] font-bold text-amber-200 hover:text-white underline"
+                  >
+                    {showAddChildModal ? 'Close' : '+ Add Child'}
+                  </button>
+                </div>
                 <select
                   value={selectedStudentId}
                   onChange={(e) => setSelectedStudentId(e.target.value)}
@@ -200,6 +302,65 @@ export function BookingFlow({
                 </select>
               </div>
             </div>
+
+            {/* Inline Quick Add Child Form */}
+            {showAddChildModal && (
+              <form
+                onSubmit={handleAddChild}
+                className="bg-amber-950/80 rounded-2xl p-4 flex flex-col space-y-3 transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    Register New Child for {currentSelectedParent?.name}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-bold text-amber-200 mb-1">
+                      Child Full Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Maya Tanaka"
+                      value={newChildName}
+                      onChange={(e) => setNewChildName(e.target.value)}
+                      className="w-full bg-slate-900 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-slate-400 focus:outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-amber-200 mb-1">
+                      Age (4 - 16)
+                    </label>
+                    <input
+                      type="number"
+                      min={4}
+                      max={16}
+                      value={newChildAge}
+                      onChange={(e) => setNewChildAge(Number(e.target.value))}
+                      className="w-full bg-slate-900 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddChildModal(false)}
+                    className="py-1.5 px-3 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isAddingChild}
+                    className="py-1.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs transition-all shadow-sm disabled:opacity-50"
+                  >
+                    {isAddingChild ? 'Saving...' : 'Save & Select Child'}
+                  </button>
+                </div>
+              </form>
+            )}
 
             {/* Edge Case Testing Hints */}
             <div className="bg-amber-900/60 rounded-2xl p-3 text-xs flex flex-col space-y-1 text-white">
@@ -321,11 +482,17 @@ export function BookingFlow({
                 <div className="flex items-center justify-between pb-3 border-b border-emerald-800">
                   <div>
                     <span className="text-xs text-emerald-300 font-bold uppercase">Pending Booking</span>
-                    <p className="text-sm font-bold text-white">{pendingBooking.id}</p>
+                    <p className="text-sm font-bold text-white font-mono">{pendingBooking.id}</p>
                   </div>
-                  <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-600 text-white">
-                    {pendingBooking.status}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-600 text-white">
+                      {pendingBooking.status}
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-emerald-900 text-amber-300 flex items-center space-x-1">
+                      <span>⏱️</span>
+                      <span>{formatHoldTime(holdSecondsLeft)}</span>
+                    </span>
+                  </div>
                 </div>
 
                 <div className="text-xs flex flex-col space-y-1.5 text-emerald-100">
@@ -414,6 +581,22 @@ export function BookingFlow({
                       </p>
                     )}
                   </>
+                )}
+
+                {paymentResult.success && (
+                  <div className="bg-slate-900/80 rounded-2xl p-4 mt-2 space-y-2 text-xs">
+                    <div className="flex items-center space-x-2 text-emerald-400 font-bold">
+                      <span>📧</span>
+                      <span>Receipt & calendar invite dispatched to: {currentSelectedParent?.email}</span>
+                    </div>
+                    <div className="flex items-center justify-between bg-slate-950 p-2.5 rounded-xl font-mono text-[11px] text-slate-300">
+                      <span className="truncate">🔗 https://zoom.us/j/ottodot-trial-{paymentResult.booking?.trial_class_id.slice(-6)}</span>
+                      <span className="text-amber-400 font-bold ml-2">Classroom URL</span>
+                    </div>
+                    <p className="text-slate-400 text-[11px] italic">
+                      ✓ Teacher roster automatically synced. Click tab "2. Teacher Roster" to verify confirmed seat.
+                    </p>
+                  </div>
                 )}
               </div>
             </div>

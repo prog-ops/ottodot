@@ -7,8 +7,11 @@ import {
   RosterEntry, 
   ReserveBookingInput, 
   ProcessPaymentInput, 
-  BookingResult 
+  BookingResult,
+  SystemMetrics,
 } from '@/types';
+
+const serverStartTime = Date.now();
 import { 
   INITIAL_PARENTS, 
   INITIAL_STUDENTS, 
@@ -85,6 +88,18 @@ export class InMemoryBookingStore {
       return this.students.filter(s => s.parent_id === parentId);
     }
     return [...this.students];
+  }
+
+  public async addStudent(parentId: string, name: string, age: number): Promise<Student> {
+    const newStudent: Student = {
+      id: `student-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      parent_id: parentId,
+      name,
+      age,
+      created_at: new Date().toISOString(),
+    };
+    this.students.push(newStudent);
+    return newStudent;
   }
 
   public async getTrialClasses(): Promise<TrialClass[]> {
@@ -357,6 +372,63 @@ export class InMemoryBookingStore {
       releaseLock();
     }
   }
+
+  public async getMetrics(): Promise<SystemMetrics> {
+    const classes = await this.getTrialClasses();
+    const bookings = [...this.bookings];
+    const payments = [...this.paymentAttempts];
+
+    const overbooked = classes.filter((c) => (c.confirmed_count ?? 0) > c.capacity);
+
+    const confirmedBookings = bookings.filter((b) => b.status === 'confirmed');
+    const pairCounts: Record<string, number> = {};
+    let duplicateConfirmedCount = 0;
+    for (const b of confirmedBookings) {
+      const key = `${b.trial_class_id}_${b.student_id}`;
+      pairCounts[key] = (pairCounts[key] || 0) + 1;
+      if (pairCounts[key] > 1) {
+        duplicateConfirmedCount++;
+      }
+    }
+
+    const totalConfirmed = confirmedBookings.length;
+    const totalCapacity = classes.reduce((sum, c) => sum + c.capacity, 0);
+
+    const raceConflicts = payments.filter((p) =>
+      p.status === 'failed' && (p.failure_reason?.includes('Seat taken') || p.failure_reason?.includes('race condition'))
+    ).length;
+
+    return {
+      status: overbooked.length === 0 && duplicateConfirmedCount === 0 ? 'healthy' : 'degraded',
+      uptime_seconds: Math.floor((Date.now() - serverStartTime) / 1000),
+      database: isSupabaseConfigured ? 'supabase' : 'in_memory',
+      invariants: {
+        overbooked_classes_count: overbooked.length,
+        duplicate_confirmed_count: duplicateConfirmedCount,
+        all_invariants_pass: overbooked.length === 0 && duplicateConfirmedCount === 0,
+      },
+      stats: {
+        total_classes: classes.length,
+        total_capacity: totalCapacity,
+        total_confirmed_students: totalConfirmed,
+        capacity_utilization_percent: Math.round((totalConfirmed / (totalCapacity || 1)) * 100),
+        total_bookings_created: bookings.length,
+        bookings_by_status: {
+          confirmed: bookings.filter((b) => b.status === 'confirmed').length,
+          pending_payment: bookings.filter((b) => b.status === 'pending_payment').length,
+          payment_failed: bookings.filter((b) => b.status === 'payment_failed').length,
+          cancelled: bookings.filter((b) => b.status === 'cancelled').length,
+        },
+        total_payment_attempts: payments.length,
+        payment_attempts_by_status: {
+          succeeded: payments.filter((p) => p.status === 'succeeded').length,
+          failed: payments.filter((p) => p.status === 'failed').length,
+        },
+        race_condition_conflicts: raceConflicts,
+      },
+      recent_payment_attempts: payments.slice(-8).reverse(),
+    };
+  }
 }
 
 // ==============================================================================
@@ -394,6 +466,18 @@ class UnifiedBookingStore {
       }
     }
     return this.inMemoryStore.getStudents(parentId);
+  }
+
+  async addStudent(parentId: string, name: string, age: number): Promise<Student> {
+    if (isSupabaseConfigured) {
+      try {
+        const student = await supabaseStore.addStudent(parentId, name, age);
+        if (student) return student;
+      } catch (err) {
+        console.error('Failed to add student to Supabase, falling back to local:', err);
+      }
+    }
+    return this.inMemoryStore.addStudent(parentId, name, age);
   }
 
   async getTrialClasses(): Promise<TrialClass[]> {
@@ -464,6 +548,18 @@ class UnifiedBookingStore {
       }
     }
     return this.inMemoryStore.processPayment(input);
+  }
+
+  async getMetrics(): Promise<SystemMetrics> {
+    if (isSupabaseConfigured) {
+      try {
+        const metrics = await supabaseStore.getMetrics();
+        if (metrics) return metrics;
+      } catch (err) {
+        console.error('Failed to get metrics from Supabase, falling back to local:', err);
+      }
+    }
+    return this.inMemoryStore.getMetrics();
   }
 
   reset(): void {

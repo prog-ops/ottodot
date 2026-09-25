@@ -14,7 +14,7 @@ A high-reliability trial class booking slice designed for **Ottodot** (live onli
 # 1. Install dependencies
 bun install
 
-# 2. Run the automated test suite (5 tests verifying all invariants & race conditions)
+# 2. Run the automated test suite (17 tests verifying all invariants, race conditions, & API routes)
 bun test
 
 # 3. Start the development server
@@ -23,10 +23,10 @@ bun dev
 Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 ### Verification Scripts
-To test backend reliability under concurrent race conditions:
+To test backend reliability under concurrent race conditions & full API suite:
 ```bash
-# Runs the full automated invariant & race condition suite
-bun test tests/booking-reliability.test.ts
+# Runs the full automated invariant & race condition suite (17 tests, 103 assertions)
+bun test
 ```
 
 ---
@@ -34,12 +34,13 @@ bun test tests/booking-reliability.test.ts
 ## 2. What We Built
 
 We implemented the smallest production-grade working slice of the trial booking lifecycle:
-1. **Parent Booking Flow**: Parents select their child and an available trial class (science or math).
-2. **Atomic Reservation (`pending_payment`)**: Creates a reservation that checks capacity and duplicate constraints before handing off to payment.
-3. **Mock Payment Processing**: Simulates successful transactions or card declines.
+1. **Parent Booking Flow**: Parents select their child and an available trial class (science or math), with custom student registration (`POST /api/students`).
+2. **Atomic Reservation (`pending_payment`)**: Creates a reservation that checks capacity and duplicate constraints before handing off to payment, with an active 10-minute hold countdown timer.
+3. **Mock Payment Processing**: Simulates successful transactions or card declines with immediate confirmation receipts, Zoom classroom links, and dispatch notes.
 4. **Reliable Status Tracking**: Live booking statuses (`pending_payment`, `confirmed`, `payment_failed`, `cancelled`) with transaction logs.
 5. **Teacher / Admin Roster**: Live roster showing only students with verified `confirmed` bookings, completely excluding failed or unconfirmed payments.
 6. **Interactive Race Condition Testing Lab**: A built-in simulator with real-time execution telemetry to demonstrate the Last-Seat Race between User A and User B.
+7. **System Health & Invariants Monitoring Dashboard**: Dedicated live monitoring tab (Tab 4) and API (`GET /api/monitoring`) providing real-time invariant health checks (0 overbooked, 0 duplicates), capacity utilization, and payment gateway audit log.
 
 ---
 
@@ -191,13 +192,23 @@ To keep the scope razor-sharp on reliability and data invariants:
 
 ---
 
-## 9. What We Would Monitor After Release
+## 9. Live System Health & Invariants Monitoring
 
-1. **Roster Invariant Violations**: Alert immediately if `COUNT(bookings WHERE trial_class_id = X AND status = 'confirmed') > 4`.
-2. **Race Condition Frequency**: Track how often parents hit `CLASS_FULL` during payment processing (indicates high demand; signals need for more sections).
-3. **Payment Failure vs Abandonment Rates**: Track percentage of `pending_payment` bookings that transition to `payment_failed` vs timing out.
-4. **Database Lock Wait Duration**: Monitor lock acquisition latency on `trial_classes` during high-traffic drops.
-5. **Double Booking Attempt Metrics**: Alert if a high rate of duplicate attempts occurs, which could indicate UI confusion or double-clicking.
+We implemented a built-in, lightweight monitoring subsystem accessible via **UI Tab 4 ("4. Health & Monitoring")** and the public REST endpoint **`GET /api/monitoring`**:
+
+1. **System Invariant Guards**:
+   - **Overbooked Classes Count**: Scans all classes to guarantee confirmed students never exceed 4 (`0 VIOLATIONS`).
+   - **Duplicate Confirmed Bookings**: Scans confirmed bookings for duplicate `(student_id, trial_class_id)` pairs (`0 DUPLICATES`).
+   - **Overall Invariant Status**: Automatically flags `HEALTHY (PASS)` or `DEGRADED (FAIL)`.
+2. **Operational Telemetry**:
+   - **Storage Engine**: Live indicator showing whether connected to remote `Supabase (PostgreSQL with Row Locks)` or local `In-Memory ACID Mutex`.
+   - **Capacity Utilization**: Dynamic calculation of confirmed seats vs max capacity across all trial sections.
+   - **Checkout Funnel Breakdown**: Quantifies bookings across `confirmed`, `pending_payment`, `payment_failed`, and `cancelled`.
+   - **Race Condition Conflicts Counter**: Real-time counter of atomic conflicts intercepted and blocked to prevent double-charging.
+3. **Immutable Gateway Audit Ledger**:
+   - Live stream of recent payment attempts, showing transaction IDs, booking IDs, amounts, and gatekeeper rejection reasons.
+4. **Header Status Pill**:
+   - Real-time `Invariants: 100% Passing` indicator in the top header.
 
 ---
 

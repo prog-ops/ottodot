@@ -152,3 +152,42 @@ export interface ParentsApiResponse {
   data: ParentWithStudents[];
   message?: string;
 }
+
+export interface SystemMetrics {
+  status: 'healthy' | 'degraded';
+  uptime_seconds: number;
+  database: 'supabase' | 'in_memory';
+  invariants: {
+    overbooked_classes_count: number;
+    duplicate_confirmed_count: number;
+    all_invariants_pass: boolean;
+  };
+  stats: {
+    total_classes: number;
+    total_capacity: number;
+    total_confirmed_students: number;
+    capacity_utilization_percent: number;
+    total_bookings_created: number;
+    bookings_by_status: {
+      confirmed: number;
+      pending_payment: number;
+      payment_failed: number;
+      cancelled: number;
+    };
+    total_payment_attempts: number;
+    payment_attempts_by_status: {
+      succeeded: number;
+      failed: number;
+    };
+    race_condition_conflicts: number;
+  };
+  recent_payment_attempts: PaymentAttempt[];
+}
+
+export interface MonitoringApiResponse {
+  success: boolean;
+  data: SystemMetrics;
+  timestamp: string;
+  message?: string;
+}
+

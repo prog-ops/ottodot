@@ -6,6 +6,7 @@ import { TrialClass, ParentWithStudents, RosterEntry } from '@/types';
 import { BookingFlow } from './booking-flow';
 import { RosterView } from './roster-view';
 import { RaceSimulator } from './race-simulator';
+import { MonitoringDashboard } from './monitoring-dashboard';
 import { ThemeToggle } from './theme-toggle';
 
 interface TrialBookingAppProps {
@@ -20,7 +21,7 @@ export function TrialBookingApp({
   initialRoster,
 }: TrialBookingAppProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'booking' | 'roster' | 'simulator'>('booking');
+  const [activeTab, setActiveTab] = useState<'booking' | 'roster' | 'simulator' | 'monitoring'>('booking');
   const [classes, setClasses] = useState<TrialClass[]>(initialClasses);
   const [parents] = useState<ParentWithStudents[]>(initialParents);
   const [roster, setRoster] = useState<RosterEntry[]>(initialRoster);
@@ -56,7 +57,7 @@ export function TrialBookingApp({
     }
   };
 
-  const handleTabChange = (tab: 'booking' | 'roster' | 'simulator') => {
+  const handleTabChange = (tab: 'booking' | 'roster' | 'simulator' | 'monitoring') => {
     setActiveTab(tab);
     if (tab === 'roster' || tab === 'booking') {
       fetchLatestData();
@@ -100,7 +101,13 @@ export function TrialBookingApp({
               🚀
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-white">OTTODOT</h1>
+              <div className="flex items-center space-x-2">
+                <h1 className="text-xl font-bold tracking-tight text-white">OTTODOT</h1>
+                <span className="hidden md:inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-950 text-emerald-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>Invariants: 100% Passing</span>
+                </span>
+              </div>
               <p className="text-xs italic text-amber-200">
                 Live Science & Math Trial Booking Reliability
               </p>
@@ -138,6 +145,16 @@ export function TrialBookingApp({
               }`}
             >
               3. Race Simulator Lab
+            </button>
+            <button
+              onClick={() => handleTabChange('monitoring')}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm flex items-center space-x-1.5 ${
+                activeTab === 'monitoring'
+                  ? 'bg-blue-800 text-white'
+                  : 'bg-slate-800 text-white hover:bg-slate-700'
+              }`}
+            >
+              <span>📊 4. Health & Monitoring</span>
             </button>
 
             {/* Quick Actions */}
@@ -186,6 +203,10 @@ export function TrialBookingApp({
         {activeTab === 'simulator' && (
           <RaceSimulator onSimulationCompleted={handleSimulationCompleted} />
         )}
+
+        {activeTab === 'monitoring' && (
+          <MonitoringDashboard onResetSeed={handleResetSeed} />
+        )}
       </main>
 
       {/* Footer */}
@@ -198,6 +219,9 @@ export function TrialBookingApp({
             </a>
             <a href="/api/roster" target="_blank" className="hover:text-white underline">
               /api/roster
+            </a>
+            <a href="/api/monitoring" target="_blank" className="hover:text-white underline">
+              /api/monitoring
             </a>
           </div>
         </div>

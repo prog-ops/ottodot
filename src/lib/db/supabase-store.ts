@@ -8,8 +8,11 @@ import {
   ProcessPaymentInput, 
   BookingResult, 
   Booking,
-  PaymentAttempt
+  PaymentAttempt,
+  SystemMetrics
 } from '@/types';
+
+const serverStartTime = Date.now();
 
 export class SupabaseBookingStore {
   /**
@@ -49,6 +52,30 @@ export class SupabaseBookingStore {
       return [];
     }
     return (data as Student[]) || [];
+  }
+
+  /**
+   * Add a new student to Supabase
+   */
+  async addStudent(parentId: string, name: string, age: number): Promise<Student | null> {
+    if (!supabaseAdmin) return null;
+    const newId = `student-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const { data, error } = await supabaseAdmin
+      .from('students')
+      .insert({
+        id: newId,
+        parent_id: parentId,
+        name,
+        age,
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.error('Failed to add student to Supabase:', error);
+      return null;
+    }
+    return data as Student;
   }
 
   /**
@@ -289,6 +316,100 @@ export class SupabaseBookingStore {
       booking: updatedBooking as Booking,
       message: rpcResult.message || 'Payment successful! Trial class seat confirmed.',
     };
+  }
+
+  /**
+   * Compute real-time invariants and metrics directly from Supabase
+   */
+  async getMetrics(): Promise<SystemMetrics | null> {
+    if (!supabaseAdmin) return null;
+
+    try {
+      const { data: classes, error: classesErr } = await supabaseAdmin
+        .from('trial_classes')
+        .select('*');
+      if (classesErr || !classes) return null;
+
+      const { data: bookings, error: bookingsErr } = await supabaseAdmin
+        .from('bookings')
+        .select('*');
+      if (bookingsErr || !bookings) return null;
+
+      const { data: payments, error: paymentsErr } = await supabaseAdmin
+        .from('payment_attempts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(15);
+
+      const paymentAttempts = (payments as PaymentAttempt[]) || [];
+
+      // Calculate invariant checks
+      const confirmedBookings = bookings.filter((b: any) => b.status === 'confirmed');
+      const countsByClass: Record<string, number> = {};
+      const pairCounts: Record<string, number> = {};
+      let duplicateConfirmedCount = 0;
+
+      for (const b of confirmedBookings) {
+        countsByClass[b.trial_class_id] = (countsByClass[b.trial_class_id] || 0) + 1;
+        const pair = `${b.trial_class_id}_${b.student_id}`;
+        pairCounts[pair] = (pairCounts[pair] || 0) + 1;
+        if (pairCounts[pair] > 1) {
+          duplicateConfirmedCount++;
+        }
+      }
+
+      let overbookedClassesCount = 0;
+      for (const cls of classes) {
+        if ((countsByClass[cls.id] || 0) > cls.capacity) {
+          overbookedClassesCount++;
+        }
+      }
+
+      const totalCapacity = classes.reduce((sum: number, c: any) => sum + (c.capacity || 4), 0);
+      const totalConfirmed = confirmedBookings.length;
+
+      const raceConflicts = paymentAttempts.filter(
+        (p) =>
+          p.status === 'failed' &&
+          (p.failure_reason?.includes('Seat taken') ||
+            p.failure_reason?.includes('capacity') ||
+            p.failure_reason?.includes('race condition'))
+      ).length;
+
+      return {
+        status: overbookedClassesCount === 0 && duplicateConfirmedCount === 0 ? 'healthy' : 'degraded',
+        uptime_seconds: Math.floor((Date.now() - serverStartTime) / 1000),
+        database: 'supabase',
+        invariants: {
+          overbooked_classes_count: overbookedClassesCount,
+          duplicate_confirmed_count: duplicateConfirmedCount,
+          all_invariants_pass: overbookedClassesCount === 0 && duplicateConfirmedCount === 0,
+        },
+        stats: {
+          total_classes: classes.length,
+          total_capacity: totalCapacity,
+          total_confirmed_students: totalConfirmed,
+          capacity_utilization_percent: Math.round((totalConfirmed / (totalCapacity || 1)) * 100),
+          total_bookings_created: bookings.length,
+          bookings_by_status: {
+            confirmed: confirmedBookings.length,
+            pending_payment: bookings.filter((b: any) => b.status === 'pending_payment').length,
+            payment_failed: bookings.filter((b: any) => b.status === 'payment_failed').length,
+            cancelled: bookings.filter((b: any) => b.status === 'cancelled').length,
+          },
+          total_payment_attempts: paymentAttempts.length,
+          payment_attempts_by_status: {
+            succeeded: paymentAttempts.filter((p) => p.status === 'succeeded').length,
+            failed: paymentAttempts.filter((p) => p.status === 'failed').length,
+          },
+          race_condition_conflicts: raceConflicts,
+        },
+        recent_payment_attempts: paymentAttempts.slice(0, 8),
+      };
+    } catch (err) {
+      console.error('Error computing Supabase metrics:', err);
+      return null;
+    }
   }
 }
 

@@ -7,6 +7,8 @@ import { POST as reserveBooking } from '../src/app/api/bookings/reserve/route';
 import { POST as processPayment } from '../src/app/api/bookings/pay/route';
 import { POST as simulateRace } from '../src/app/api/simulate-race/route';
 import { POST as resetSeed } from '../src/app/api/seed/reset/route';
+import { GET as getMonitoring } from '../src/app/api/monitoring/route';
+import { POST as addStudent } from '../src/app/api/students/route';
 import { bookingStore } from '../src/lib/db/store';
 
 describe('Next.js API Route Handlers Integration Test Suite', () => {
@@ -204,5 +206,55 @@ describe('Next.js API Route Handlers Integration Test Suite', () => {
     const body = await res.json();
     expect(body.success).toBe(true);
     expect(body.message).toContain('reset to initial state');
+  });
+
+  test('11. GET /api/monitoring - reports system health, invariants status, and telemetry', async () => {
+    const res = await getMonitoring();
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data).toBeDefined();
+    expect(body.data.status).toBe('healthy');
+    expect(body.data.invariants.all_invariants_pass).toBe(true);
+    expect(body.data.invariants.overbooked_classes_count).toBe(0);
+    expect(body.data.invariants.duplicate_confirmed_count).toBe(0);
+    expect(body.data.stats.total_classes).toBe(3);
+    expect(body.data.stats.total_capacity).toBe(12);
+    expect(body.data.stats.total_confirmed_students).toBe(8);
+    expect(body.data.stats.capacity_utilization_percent).toBe(67);
+    expect(Array.isArray(body.data.recent_payment_attempts)).toBe(true);
+  });
+
+  test('12. POST /api/students - validates input and allows registering a custom child', async () => {
+    // Missing fields
+    const invalidReq = new NextRequest('http://localhost:3000/api/students', {
+      method: 'POST',
+      body: JSON.stringify({ parent_id: 'parent-1' }),
+    });
+    const invalidRes = await addStudent(invalidReq);
+    expect(invalidRes.status).toBe(400);
+
+    // Invalid age (< 4)
+    const invalidAgeReq = new NextRequest('http://localhost:3000/api/students', {
+      method: 'POST',
+      body: JSON.stringify({ parent_id: 'parent-1', name: 'Baby Connor', age: 2 }),
+    });
+    const invalidAgeRes = await addStudent(invalidAgeReq);
+    expect(invalidAgeRes.status).toBe(400);
+
+    // Successful student registration
+    const validReq = new NextRequest('http://localhost:3000/api/students', {
+      method: 'POST',
+      body: JSON.stringify({ parent_id: 'parent-1', name: 'Kyle Connor', age: 9 }),
+    });
+    const validRes = await addStudent(validReq);
+    expect(validRes.status).toBe(201);
+
+    const validBody = await validRes.json();
+    expect(validBody.success).toBe(true);
+    expect(validBody.data.name).toBe('Kyle Connor');
+    expect(validBody.data.age).toBe(9);
+    expect(validBody.data.parent_id).toBe('parent-1');
   });
 });
