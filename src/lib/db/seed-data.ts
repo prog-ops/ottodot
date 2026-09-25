@@ -1,0 +1,292 @@
+import { Parent, Student, TrialClass, Booking, PaymentAttempt } from '@/types';
+
+export const INITIAL_PARENTS: Parent[] = [
+  {
+    id: 'parent-1',
+    name: 'Sarah Connor',
+    email: 'sarah.connor@example.com',
+    phone: '+6281234567890',
+    created_at: '2026-09-01T08:00:00Z',
+  },
+  {
+    id: 'parent-2',
+    name: 'Bruce Wayne',
+    email: 'bruce.wayne@example.com',
+    phone: '+6281234567891',
+    created_at: '2026-09-02T08:00:00Z',
+  },
+  {
+    id: 'parent-3',
+    name: 'Diana Prince',
+    email: 'diana.prince@example.com',
+    phone: '+6281234567892',
+    created_at: '2026-09-03T08:00:00Z',
+  },
+  {
+    id: 'parent-4',
+    name: 'Clark Kent',
+    email: 'clark.kent@example.com',
+    phone: '+6281234567893',
+    created_at: '2026-09-04T08:00:00Z',
+  },
+  {
+    id: 'parent-5',
+    name: 'Barry Allen',
+    email: 'barry.allen@example.com',
+    phone: '+6281234567894',
+    created_at: '2026-09-05T08:00:00Z',
+  },
+];
+
+export const INITIAL_STUDENTS: Student[] = [
+  {
+    id: 'student-1',
+    parent_id: 'parent-1',
+    name: 'John Connor',
+    age: 8,
+    created_at: '2026-09-01T08:05:00Z',
+  },
+  {
+    id: 'student-2',
+    parent_id: 'parent-2',
+    name: 'Damian Wayne',
+    age: 9,
+    created_at: '2026-09-02T08:05:00Z',
+  },
+  {
+    id: 'student-3',
+    parent_id: 'parent-3',
+    name: 'Cassandra Sandsmark',
+    age: 7,
+    created_at: '2026-09-03T08:05:00Z',
+  },
+  {
+    id: 'student-4',
+    parent_id: 'parent-4',
+    name: 'Jon Kent',
+    age: 8,
+    created_at: '2026-09-04T08:05:00Z',
+  },
+  {
+    id: 'student-5',
+    parent_id: 'parent-5',
+    name: 'Iris Allen Jr.',
+    age: 6,
+    created_at: '2026-09-05T08:05:00Z',
+  },
+  {
+    id: 'student-6',
+    parent_id: 'parent-1',
+    name: 'Mia Connor',
+    age: 6,
+    created_at: '2026-09-06T08:05:00Z',
+  },
+];
+
+export const INITIAL_CLASSES: TrialClass[] = [
+  {
+    id: 'class-avail-1',
+    title: 'Junior Chemistry: Slime & Bubbles Lab',
+    subject: 'science',
+    instructor_name: 'Dr. Evelyn Reed',
+    scheduled_at: '2026-10-05T10:00:00Z',
+    capacity: 4,
+    price_cents: 2500, // $25.00
+    created_at: '2026-09-01T00:00:00Z',
+  },
+  {
+    id: 'class-race-3',
+    title: 'Speed Math: Mental Arithmetic Quest',
+    subject: 'math',
+    instructor_name: 'Prof. Alan Turing Jr.',
+    scheduled_at: '2026-10-06T14:00:00Z',
+    capacity: 4, // Exactly 3 confirmed students booked, 1 seat left for race scenario
+    price_cents: 2500,
+    created_at: '2026-09-01T00:00:00Z',
+  },
+  {
+    id: 'class-full-4',
+    title: 'Galaxy Explorers: Rocketry & Solar System',
+    subject: 'science',
+    instructor_name: 'Commander Chris',
+    scheduled_at: '2026-10-07T16:00:00Z',
+    capacity: 4, // 4 confirmed students booked, fully booked
+    price_cents: 2500,
+    created_at: '2026-09-01T00:00:00Z',
+  },
+];
+
+export const INITIAL_BOOKINGS: Booking[] = [
+  // Class 1 (Junior Chemistry): 1 confirmed student (John Connor)
+  {
+    id: 'booking-c1-s1',
+    trial_class_id: 'class-avail-1',
+    student_id: 'student-1',
+    parent_id: 'parent-1',
+    status: 'confirmed',
+    payment_reference: 'pay_ref_c1_s1',
+    created_at: '2026-09-10T09:00:00Z',
+    confirmed_at: '2026-09-10T09:02:15Z',
+  },
+  // Class 1 payment failure example: Mia Connor attempted to book, payment failed, NOT confirmed
+  {
+    id: 'booking-c1-fail',
+    trial_class_id: 'class-avail-1',
+    student_id: 'student-6',
+    parent_id: 'parent-1',
+    status: 'payment_failed',
+    payment_reference: 'pay_ref_fail_demo',
+    created_at: '2026-09-11T11:00:00Z',
+    confirmed_at: null,
+  },
+
+  // Class 2 (Speed Math): EXACTLY 3 confirmed students (Damian, Cassandra, Jon) -> 1 SEAT LEFT!
+  {
+    id: 'booking-c2-s2',
+    trial_class_id: 'class-race-3',
+    student_id: 'student-2',
+    parent_id: 'parent-2',
+    status: 'confirmed',
+    payment_reference: 'pay_ref_c2_s2',
+    created_at: '2026-09-12T10:00:00Z',
+    confirmed_at: '2026-09-12T10:01:00Z',
+  },
+  {
+    id: 'booking-c2-s3',
+    trial_class_id: 'class-race-3',
+    student_id: 'student-3',
+    parent_id: 'parent-3',
+    status: 'confirmed',
+    payment_reference: 'pay_ref_c2_s3',
+    created_at: '2026-09-12T10:05:00Z',
+    confirmed_at: '2026-09-12T10:06:12Z',
+  },
+  {
+    id: 'booking-c2-s4',
+    trial_class_id: 'class-race-3',
+    student_id: 'student-4',
+    parent_id: 'parent-4',
+    status: 'confirmed',
+    payment_reference: 'pay_ref_c2_s4',
+    created_at: '2026-09-12T10:10:00Z',
+    confirmed_at: '2026-09-12T10:11:45Z',
+  },
+
+  // Class 3 (Galaxy Explorers): EXACTLY 4 confirmed students -> FULLY BOOKED!
+  {
+    id: 'booking-c3-s1',
+    trial_class_id: 'class-full-4',
+    student_id: 'student-1',
+    parent_id: 'parent-1',
+    status: 'confirmed',
+    payment_reference: 'pay_ref_c3_s1',
+    created_at: '2026-09-13T08:00:00Z',
+    confirmed_at: '2026-09-13T08:01:20Z',
+  },
+  {
+    id: 'booking-c3-s2',
+    trial_class_id: 'class-full-4',
+    student_id: 'student-2',
+    parent_id: 'parent-2',
+    status: 'confirmed',
+    payment_reference: 'pay_ref_c3_s2',
+    created_at: '2026-09-13T08:05:00Z',
+    confirmed_at: '2026-09-13T08:06:10Z',
+  },
+  {
+    id: 'booking-c3-s3',
+    trial_class_id: 'class-full-4',
+    student_id: 'student-3',
+    parent_id: 'parent-3',
+    status: 'confirmed',
+    payment_reference: 'pay_ref_c3_s3',
+    created_at: '2026-09-13T08:10:00Z',
+    confirmed_at: '2026-09-13T08:11:00Z',
+  },
+  {
+    id: 'booking-c3-s4',
+    trial_class_id: 'class-full-4',
+    student_id: 'student-4',
+    parent_id: 'parent-4',
+    status: 'confirmed',
+    payment_reference: 'pay_ref_c3_s4',
+    created_at: '2026-09-13T08:15:00Z',
+    confirmed_at: '2026-09-13T08:16:30Z',
+  },
+];
+
+export const INITIAL_PAYMENT_ATTEMPTS: PaymentAttempt[] = [
+  {
+    id: 'pay-1',
+    booking_id: 'booking-c1-s1',
+    amount_cents: 2500,
+    status: 'succeeded',
+    transaction_id: 'tx_success_c1_s1',
+    created_at: '2026-09-10T09:02:15Z',
+  },
+  {
+    id: 'pay-fail-1',
+    booking_id: 'booking-c1-fail',
+    amount_cents: 2500,
+    status: 'failed',
+    failure_reason: 'Card declined: Insufficient funds simulated',
+    transaction_id: 'tx_failed_simulated',
+    created_at: '2026-09-11T11:01:00Z',
+  },
+  {
+    id: 'pay-2',
+    booking_id: 'booking-c2-s2',
+    amount_cents: 2500,
+    status: 'succeeded',
+    transaction_id: 'tx_success_c2_s2',
+    created_at: '2026-09-12T10:01:00Z',
+  },
+  {
+    id: 'pay-3',
+    booking_id: 'booking-c2-s3',
+    amount_cents: 2500,
+    status: 'succeeded',
+    transaction_id: 'tx_success_c2_s3',
+    created_at: '2026-09-12T10:06:12Z',
+  },
+  {
+    id: 'pay-4',
+    booking_id: 'booking-c2-s4',
+    amount_cents: 2500,
+    status: 'succeeded',
+    transaction_id: 'tx_success_c2_s4',
+    created_at: '2026-09-12T10:11:45Z',
+  },
+  {
+    id: 'pay-5',
+    booking_id: 'booking-c3-s1',
+    amount_cents: 2500,
+    status: 'succeeded',
+    transaction_id: 'tx_success_c3_s1',
+    created_at: '2026-09-13T08:01:20Z',
+  },
+  {
+    id: 'pay-6',
+    booking_id: 'booking-c3-s2',
+    amount_cents: 2500,
+    status: 'succeeded',
+    transaction_id: 'tx_success_c3_s2',
+    created_at: '2026-09-13T08:06:10Z',
+  },
+  {
+    id: 'pay-7',
+    booking_id: 'booking-c3-s3',
+    amount_cents: 2500,
+    status: 'succeeded',
+    transaction_id: 'tx_success_c3_s3',
+    created_at: '2026-09-13T08:11:00Z',
+  },
+  {
+    id: 'pay-8',
+    booking_id: 'booking-c3-s4',
+    amount_cents: 2500,
+    status: 'succeeded',
+    transaction_id: 'tx_success_c3_s4',
+    created_at: '2026-09-13T08:16:30Z',
+  },
+];
