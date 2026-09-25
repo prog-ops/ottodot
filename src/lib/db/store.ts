@@ -439,7 +439,11 @@ class UnifiedBookingStore {
   async reserveBooking(input: ReserveBookingInput): Promise<BookingResult> {
     if (isSupabaseConfigured) {
       try {
-        return await supabaseStore.reserveBooking(input);
+        const res = await supabaseStore.reserveBooking(input);
+        if (res.success || res.error_code === 'DUPLICATE_BOOKING' || res.error_code === 'CLASS_FULL') {
+          return res;
+        }
+        console.warn('Supabase reservation returned infrastructure error, falling back to local store:', res.message);
       } catch (err) {
         console.error('Failed to reserve booking in Supabase, falling back to local:', err);
       }
@@ -450,7 +454,11 @@ class UnifiedBookingStore {
   async processPayment(input: ProcessPaymentInput): Promise<BookingResult> {
     if (isSupabaseConfigured) {
       try {
-        return await supabaseStore.processPayment(input);
+        const res = await supabaseStore.processPayment(input);
+        if (res.success || res.error_code === 'PAYMENT_FAILED' || res.error_code === 'CLASS_FULL' || res.error_code === 'DUPLICATE_BOOKING') {
+          return res;
+        }
+        console.warn('Supabase payment returned infrastructure error, falling back to local store:', res.message);
       } catch (err) {
         console.error('Failed to process payment in Supabase, falling back to local:', err);
       }
