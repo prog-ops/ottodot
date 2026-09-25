@@ -102,6 +102,20 @@ Located in `supabase/schema.sql` and `src/types/index.ts`:
   *Why partial?* Parents may have earlier failed payment attempts for the same class; they must still be allowed to retry. Only a `confirmed` booking prevents another booking for the same student.
 - **Strict Capacity Invariant**: Class capacity is capped at 4. Handled under serialized transaction locks.
 
+### Rendering Strategy & Hydration Defense (SSR + CSR Hybrid Architecture)
+- **Server Component (SSR)**: `src/app/page.tsx` is an async React Server Component (RSC) that directly queries initial classes, parents, and roster data on the server. This guarantees:
+  - Instant First Contentful Paint (FCP) with zero client-side waterfall spinners.
+  - Full SEO crawlability for classes, schedules, and pricing.
+  - An immutable initial data snapshot passed as props to the interactive client tree.
+- **Interactive Client Islands (CSR)**: Only the interactive leaves (`BookingFlow`, `RosterView`, `RaceSimulator`, `ThemeToggle`) run on the client.
+- **Hydration Mismatch Defense**:
+  - `suppressHydrationWarning` applied to `<html lang="en">` and `<body>` in `app/layout.tsx` to prevent warnings from client-side dark mode class toggles and browser extensions.
+  - Deterministic timestamp formatting via `FormattedTime` component to prevent server-client locale/timezone divergences.
+- **Strict TypeScript & Clean Architecture**:
+  - Zero `any` types throughout the entire codebase.
+  - Discriminated unions on all domain results (`BookingSuccessResult | BookingFailureResult`).
+  - Strict type narrowing on all errors (`error: unknown` with `error instanceof Error`).
+
 ---
 
 ## 5. Required Technical Scenario: The Last-Seat Race
