@@ -16,11 +16,24 @@ function sanitizeSupabaseUrl(rawUrl: string): string {
   }
 }
 
-const rawSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+// Supports both NEXT_PUBLIC_ prefixes and standard server prefixes
+const rawSupabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  process.env.SUPABASE_URL ||
+  '';
 const supabaseUrl = sanitizeSupabaseUrl(rawSupabaseUrl);
 
-const supabaseAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim();
-const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey).trim();
+const supabaseAnonKey = (
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  ''
+).trim();
+
+const supabaseServiceKey = (
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SERVICE_KEY ||
+  supabaseAnonKey
+).trim();
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl && (supabaseAnonKey || supabaseServiceKey)
